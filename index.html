@@ -58,33 +58,43 @@
     const normalized=s=>clean(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/([0-9])\.(?=[0-9]{3}(?:\D|$))/g,'$1').replace(/[^a-z0-9%]+/g,' ');
     const includesTerm=(text,term)=>new RegExp('(^|[^a-z0-9])'+term.replace(/[.*+?^$\{\}()|[\]\\]/g,'\\$&')+'([^a-z0-9]|$)').test(text);
     const unitTokens=s=>{const prepared=(s||'').replace(/([0-9])\.(?=[0-9]{3}(?:\D|$))/g,'$1').replace(/,/g,'.').toLowerCase();return [...prepared.matchAll(/\d+(?:\.\d+)?\s*(?:mg\s*\/\s*ml|mcg|mg|meq\s*\/\s*ml|utr|%|g|ml)/g)].map(m=>m[0].replace(/\s+/g,''))};
+    function strengthKeys(s){
+      const p=(s||'').replace(/([0-9])\.(?=[0-9]{3}(?:\D|$))/g,'$1').replace(/,/g,'.').toLowerCase(),keys=[];let m;
+      const add=(unit,value)=>{const key=unit+':'+Number(value).toFixed(4);if(!keys.includes(key))keys.push(key)};
+      const patterns=[['mgml',/(\d+(?:\.\d+)?)\s*mg\s*\/\s*ml/g],['mcg',/(\d+(?:\.\d+)?)\s*mcg(?!\s*\/)/g],['meqml',/(\d+(?:\.\d+)?)\s*meq\s*\/\s*ml/g],['utr',/(\d+(?:\.\d+)?)\s*utr/g],['pct',/(\d+(?:\.\d+)?)\s*%/g]];
+      for(const [unit,re] of patterns)while((m=re.exec(p))){add(unit,m[1]);if(unit==='pct')add('mgml',Number(m[1])*10)}
+      const mass=p.replace(/\d+(?:\.\d+)?\s*mg\s*\/\s*ml/g,'');for(const hit of mass.matchAll(/(\d+(?:\.\d+)?)\s*mg\b/g))add('mg',hit[1]);return keys;
+    }
+    const volumeKeys=s=>{const p=(s||'').replace(/([0-9])\.(?=[0-9]{3}(?:\D|$))/g,'$1').replace(/,/g,'.').toLowerCase();return [...p.matchAll(/(\d+(?:\.\d+)?)\s*ml\b/g)].map(m=>'ml:'+Number(m[1]).toFixed(4))};
+    function formGroups(s){const n=normalized(s),out=[];const add=k=>{if(!out.includes(k))out.push(k)};if(/frasco ampola|ampola|injetavel|endovenoso|intravenoso/.test(n))add('injetavel');if(/colirio|oftalm/.test(n))add('oftalmico');if(/comprimido|capsula|envelope|solucao oral|xarope|suspensao oral/.test(n))add('oral');if(/pomada|bisnaga|creme|tubo/.test(n))add('topico');if(/bolsa/.test(n))add('bolsa');return out}
+    function catalogOption(item,context){const options=String(item.concentracao||'').split(/;|\s+e\s+(?=\d)/i).map(clean).filter(Boolean),wanted=[...strengthKeys(context),...volumeKeys(context)];let best='',score=0;for(const option of options){const keys=[...strengthKeys(option),...volumeKeys(option)],current=keys.filter(k=>wanted.includes(k)).length;if(current>score){best=option;score=current}}return best}
     function catalogMatches(pages){
-      const results=new Map(), forms=['frasco ampola','ampola','colirio','bolsa','tubo','pomada'];
-      pages.forEach((page,pageIndex)=>{
-        const lines=page.split(/\n+/).map(clean).filter(Boolean);
-        lines.forEach((line,lineIndex)=>{
-          const hay=normalized(line);
+      const results=new Map(),volumeEvidence=new Map(),lines=[];
+      pages.forEach((page,pageIndex)=>page.split(/\n+/).map(clean).filter(Boolean).forEach(text=>lines.push({text,page:pageIndex+1})));
+      lines.forEach((entry,lineIndex)=>{
+          const line=entry.text,hay=normalized(line);
           CATALOG.forEach(item=>{
             const name=normalized(item.medicamento), aliases=[name];
             if(item.medicamento.includes('/'))aliases.push(...item.medicamento.split('/').map(normalized));
             if(/^[a-z] /.test(name))aliases.push(name.replace(/^[a-z] /,''));
             if(/ cloridrato$/.test(name))aliases.push(name.replace(/^(.+) cloridrato$/,'cloridrato de $1'));
             const alias=aliases.find(a=>includesTerm(hay,a));if(!alias)return;
-            const excerpt=clean((line.length>=name.length+15?line:lines.slice(lineIndex,Math.min(lines.length,lineIndex+3)).join(' '))).slice(0,420);
-            const exNorm=normalized(excerpt), allowedForms=forms.filter(f=>normalized(item.apresentacao).includes(f)), seenForms=forms.filter(f=>includesTerm(exNorm,f));
-            const presentationConflict=seenForms.length>0&&!seenForms.some(f=>allowedForms.includes(f));
-            const requestedTokens=unitTokens(excerpt), catalogTokens=unitTokens(item.concentracao);
+            let context=line;if(strengthKeys(line).length===0){let end=lineIndex+1,sawRow=/^\d{1,3}\s+\d{5,}\b/.test(hay);while(end<lines.length&&end<lineIndex+9){const nextRow=/^\d{1,3}\s+\d{5,}\b/.test(normalized(lines[end].text));if(nextRow&&sawRow)break;if(nextRow)sawRow=true;end++}context=clean(lines.slice(lineIndex,end).map(x=>x.text).join(' ')).slice(0,900)}
+            const requestedForms=formGroups(context),catalogForms=formGroups(item.apresentacao);
+            const presentationConflict=catalogForms.length>0&&(requestedForms.length===0||!requestedForms.some(f=>catalogForms.includes(f)));
+            const requestedStrengths=strengthKeys(context),catalogStrengths=strengthKeys(item.concentracao),requestedVolumes=volumeKeys(context),catalogVolumes=volumeKeys(item.concentracao);
             const concentrationFlexible=/todas|prescri[cç][aã]o/i.test(item.concentracao);
-            const concentrationConflict=!concentrationFlexible&&requestedTokens.length>0&&catalogTokens.length>0&&!requestedTokens.some(t=>catalogTokens.includes(t));
-            const status=presentationConflict||concentrationConflict?'review':'high';
-            const reason=presentationConflict?'apresentação diferente do catálogo':concentrationConflict?'concentração não confirmada no catálogo':'compatível com o catálogo';
-            const key=(pageIndex+1)+'|'+normalized(excerpt);
-            if(!results.has(key))results.set(key,{page:pageIndex+1,excerpt,items:[],status:'high',reasons:[]});
-            const hit=results.get(key);hit.items.push(item);if(status==='review')hit.status='review';if(!hit.reasons.includes(reason))hit.reasons.push(reason);
+            const concentrationConflict=!concentrationFlexible&&(requestedStrengths.length===0||catalogStrengths.length===0||!catalogStrengths.includes(requestedStrengths[0]));
+            const volumeConflict=requestedVolumes.length>0&&catalogVolumes.length>0&&!requestedVolumes.some(k=>catalogVolumes.includes(k));
+            const option=catalogOption(item,context),detail=option&&!/todas|prescri[cç][aã]o/i.test(option)?option:'';
+            const evidenceKey=name+'|'+(requestedStrengths[0]||normalized(detail));if(!volumeEvidence.has(evidenceKey))volumeEvidence.set(evidenceKey,{valid:false,invalid:false});const evidence=volumeEvidence.get(evidenceKey);if(requestedVolumes.length&&catalogVolumes.length){if(volumeConflict)evidence.invalid=true;else evidence.valid=true}
+            if(presentationConflict||concentrationConflict||volumeConflict)return;
+            const key=name+'|'+(detail?normalized(detail):requestedStrengths.sort().join('|'));
+            const previous=results.get(key),candidate={page:previous?Math.min(previous.page,entry.page):entry.page,name:item.medicamento,detail,context,evidenceKey};
+            if(!previous||previous.context.length<context.length)results.set(key,candidate);
           });
-        });
       });
-      return [...results.values()];
+      return [...results.values()].filter(candidate=>{const evidence=volumeEvidence.get(candidate.evidenceKey);return !evidence||evidence.valid||!evidence.invalid}).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
     }
     const pageOf=(pages,needle)=>{if(!needle)return null;const n=needle.toLowerCase().slice(0,45);const i=pages.findIndex(p=>p.toLowerCase().includes(n));return i<0?null:i+1};
     function field(key,value,confidence='high',page=null,note=''){return{key,label:labels[key],value:clean(value)||'Não encontrado',confidence:clean(value)?confidence:'missing',page,note}}
@@ -103,9 +113,10 @@
       let cliente=first(firstTwo,[/(HOSPITAL\s+[A-ZÀ-Ú][A-ZÀ-Ú\s'-]{3,})/i,/(SECRETARIA\s+(?:DE|DA|DO)\s+[A-ZÀ-Ú][A-ZÀ-Ú\s'-]{3,})/i,/(PREFEITURA\s+(?:MUNICIPAL\s+)?(?:DE\s+)?[A-ZÀ-Ú][A-ZÀ-Ú\s'-]{3,})/i,/(FUNDAÇÃO\s+[A-ZÀ-Ú][A-ZÀ-Ú\s'-]{3,})/i]);
       if(cliente)cliente=cliente.replace(/\s+(?:PAE|PROCESSO|TERMO|EDITAL).*$/i,'');
       const matches=catalogMatches(pages);
-      const objeto=matches.length?matches.map((m,i)=>`${i+1}. ${[...new Set(m.items.map(x=>x.medicamento))].join(' + ')} — ${m.excerpt} [${m.status==='high'?'compatível':'conferir'}]`).join('\n'):'Nenhum medicamento do catálogo foi identificado';
+      const prettyDetail=s=>clean(s).replace(/(\d)(mcg|mg|utr|ml)\b/gi,'$1 $2').replace(/\bml\b/gi,'mL').replace(/\butr\b/gi,'UTR');
+      const objeto=matches.length?matches.map(m=>`${m.name}${m.detail?' '+prettyDetail(m.detail):''}`).join('\n'):'Nenhuma formulação compatível foi identificada';
       const objectPages=matches.length?[...new Set(matches.map(m=>m.page))].join(', '):null;
-      const objectConfidence=!matches.length?'missing':matches.some(m=>m.status==='review')?'review':'high';
+      const objectConfidence=!matches.length?'missing':'high';
       const val=contextValue(pages,[/(?:VALOR\s+(?:TOTAL\s+)?ESTIMADO|VALOR\s+GLOBAL\s+ESTIMADO|ESTIMATIVA\s+DE\s+VALOR)[^R$\d]{0,45}(R\$\s*[\d.]+,\d{2})/i,/(R\$\s*[\d.]+,\d{2})/i]);
       const validade=contextValue(pages,[/(?:VALIDADE\s+DA\s+PROPOSTA|PROPOSTA[^.\n]{0,70}VALIDADE)[^\d]{0,25}(\d{1,3}\s*(?:dias|meses))/i,/(?:prazo\s+de\s+validade)[^\d]{0,30}(\d{1,3}\s*dias)/i]);
       const entrega=contextValue(pages,[/(?:PRAZO\s+(?:DE|PARA)\s+ENTREGA|ENTREGA[^.\n]{0,50}PRAZO)[^\d]{0,35}(\d{1,3}\s*dias?(?:\s+úteis|\s+corridos)?[^.\n]{0,100})/i,/(\d{1,3}\s*dias?\s+úteis[^.\n]{0,100}(?:empenho|ordem\s+de\s+fornecimento|solicitação))/i]);
@@ -116,7 +127,7 @@
       let tipo='',tipoConf='missing',tipoNote='';if(/entrega\s+única|fornecimento\s+único/i.test(flat)){tipo='Única';tipoConf='high'}else if(/entrega\s+parcelada|fornecimento\s+parcelado/i.test(flat)){tipo='Parcelada';tipoConf='high'}else if(/(?:de acordo|conforme)\s+com\s+(?:a\s+)?solicitação\s+de\s+empenho|parcelas?[^.\n]{0,70}empenho/i.test(flat)){tipo='Conforme solicitação de empenho';tipoConf='review';tipoNote='Revisar antes de classificar como única ou parcelada no Winner.'}
       const pror=/prorrog(?:ável|ação|ado|ada|ar)|(?:poderá|podendo)\s+ser\s+prorrogad/i.test(flat)?'Sim':'Não identificada';
       const today=new Intl.DateTimeFormat('pt-BR').format(new Date());
-      const fields=[field('cliente',cliente,cliente?'review':'missing',pageOf(pages,cliente),'Confirme a razão social/cadastro do cliente no Winner.'),field('processo',proc.value,'high',proc.page),field('edital',ed.value,ed.value?'high':'missing',ed.page),field('modalidade',modalidade,'high',modPage),field('fundamento',fund.value,fund.value?'high':'missing',fund.page),field('criterio',crit.value,crit.value?'high':'missing',crit.page),field('abertura',abertura.value,abertura.value?'high':'missing',abertura.page),field('chegada',today,'review',null,'Data em que o documento foi carregado; ajuste se necessário.'),field('objeto',objeto,objectConfidence,objectPages,matches.length?`Filtro aplicado às ${CATALOG.length} formulações da planilha; confira quantidade, unidade e apresentação.`:'Confira o edital: nomes incomuns ou texto mal extraído podem exigir revisão manual.'),field('valor',val.value,val.value?'review':'missing',val.page,'Pode haver valores por item e valor global no mesmo documento.'),field('me_epp',me,me?'review':'missing',mePage),field('entrega',entrega.value,entrega.value?'review':'missing',entrega.page,'Confira o marco inicial do prazo (empenho, ordem ou contrato).'),field('tipo_entrega',tipo,tipoConf,pageOf(pages,tipo.includes('empenho')?'solicitação de empenho':tipo),tipoNote),field('validade',validade.value,validade.value?'high':'missing',validade.page),field('pagamento',pag.value,pag.value?'review':'missing',pag.page,'Confira se a contagem começa no recebimento ou no aceite da nota fiscal.'),field('garantia',gar.value,gar.value?'review':'missing',gar.page),field('vigencia',vig.value,vig.value?'high':'missing',vig.page),field('prorrogacao',pror,pror==='Sim'?'review':'missing',pror==='Sim'?pageOf(pages,'prorrog'):null)];
+      const fields=[field('cliente',cliente,cliente?'review':'missing',pageOf(pages,cliente),'Confirme a razão social/cadastro do cliente no Winner.'),field('processo',proc.value,'high',proc.page),field('edital',ed.value,ed.value?'high':'missing',ed.page),field('modalidade',modalidade,'high',modPage),field('fundamento',fund.value,fund.value?'high':'missing',fund.page),field('criterio',crit.value,crit.value?'high':'missing',crit.page),field('abertura',abertura.value,abertura.value?'high':'missing',abertura.page),field('chegada',today,'review',null,'Data em que o documento foi carregado; ajuste se necessário.'),field('objeto',objeto,objectConfidence,objectPages,matches.length?`${matches.length} formulação(ões) compatível(is), sem repetições. O texto está pronto para copiar no Winner.`:'As ocorrências encontradas não coincidiram com apresentação e concentração do catálogo.'),field('valor',val.value,val.value?'review':'missing',val.page,'Pode haver valores por item e valor global no mesmo documento.'),field('me_epp',me,me?'review':'missing',mePage),field('entrega',entrega.value,entrega.value?'review':'missing',entrega.page,'Confira o marco inicial do prazo (empenho, ordem ou contrato).'),field('tipo_entrega',tipo,tipoConf,pageOf(pages,tipo.includes('empenho')?'solicitação de empenho':tipo),tipoNote),field('validade',validade.value,validade.value?'high':'missing',validade.page),field('pagamento',pag.value,pag.value?'review':'missing',pag.page,'Confira se a contagem começa no recebimento ou no aceite da nota fiscal.'),field('garantia',gar.value,gar.value?'review':'missing',gar.page),field('vigencia',vig.value,vig.value?'high':'missing',vig.page),field('prorrogacao',pror,pror==='Sim'?'review':'missing',pror==='Sim'?pageOf(pages,'prorrog'):null)];
       return fields;
     }
     function autosize(el){el.style.height='auto';el.style.height=Math.max(25,el.scrollHeight)+'px'}
