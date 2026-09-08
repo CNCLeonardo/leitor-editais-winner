@@ -100,6 +100,7 @@
     function field(key,value,confidence='high',page=null,note=''){return{key,label:labels[key],value:clean(value)||'Não encontrado',confidence:clean(value)?confidence:'missing',page,note}}
     function first(text,patterns,group=1){for(const p of patterns){const m=text.match(p);if(m&&m[group])return clean(m[group])}return''}
     function contextValue(pages,patterns,group=1){for(let i=0;i<pages.length;i++){const v=first(pages[i],patterns,group);if(v)return{value:v,page:i+1}}return{value:'',page:null}}
+    function proposalValidity(pages){for(let i=0;i<pages.length;i++){const text=pages[i].replace(/\s+/g,' '),patterns=[/(?:a\s+)?proposta(?:\s+comercial)?\s+ter[aá]\s+validade(?:\s+m[ií]nima)?\s+de\s+(\d{1,3})\s*(?:\([^)]{1,30}\)\s*)?(dias|meses)/i,/validade\s*da\s*proposta[^\d]{0,220}?(\d{1,3})\s*(?:\([^)]{1,30}\)\s*)?(dias|meses)/i,/(?:prazo\s+de\s+validade)[^\d]{0,160}?(\d{1,3})\s*(?:\([^)]{1,30}\)\s*)?(dias|meses)/i];for(const pattern of patterns){const m=text.match(pattern);if(m)return{value:`${m[1]} ${m[2].toLowerCase()}`,page:i+1}}}return{value:'',page:null}}
     function openingDateTime(pages){
       const candidates=[],anchor='(?:in[ií]cio da sess[aã]o(?: eletr[oô]nica)?|abertura(?: e in[ií]cio)? da sess[aã]o(?: de disputa de pre[cç]os| p[uú]blica| eletr[oô]nica)?)';
       pages.forEach((page,index)=>{const text=page.replace(/\s+/g,' '),patterns=[new RegExp(anchor+'[^0-9]{0,220}?(\\d{1,2})(?::|h)\\s*(\\d{2})(?:h)?[^0-9]{0,100}?(\\d{2}\\/\\d{2}\\/\\d{4})','i'),new RegExp(anchor+'[^0-9]{0,220}?(\\d{2}\\/\\d{2}\\/\\d{4})[^0-9]{0,100}?(\\d{1,2})(?::|h)\\s*(\\d{2})','i')];for(let p=0;p<patterns.length;p++){const m=text.match(patterns[p]);if(!m)continue;const date=p===0?m[3]:m[1],hour=p===0?m[1]:m[2],minute=p===0?m[2]:m[3];candidates.push({value:`${date} às ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`,date,page:index+1});break}});
@@ -123,7 +124,7 @@
       const objectPages=matches.length?[...new Set(matches.map(m=>m.page))].join(', '):null;
       const objectConfidence=!matches.length?'missing':'high';
       const val=contextValue(pages,[/(?:VALOR\s+(?:TOTAL\s+)?ESTIMADO|VALOR\s+GLOBAL\s+ESTIMADO|ESTIMATIVA\s+DE\s+VALOR)[^R$\d]{0,45}(R\$\s*[\d.]+,\d{2})/i,/(R\$\s*[\d.]+,\d{2})/i]);
-      const validade=contextValue(pages,[/(?:VALIDADE\s+DA\s+PROPOSTA|PROPOSTA[^.\n]{0,70}VALIDADE)[^\d]{0,25}(\d{1,3}\s*(?:dias|meses))/i,/(?:prazo\s+de\s+validade)[^\d]{0,30}(\d{1,3}\s*dias)/i]);
+      const validade=proposalValidity(pages);
       const entrega=contextValue(pages,[/(?:PRAZO\s+(?:DE|PARA)\s+ENTREGA|ENTREGA[^.\n]{0,50}PRAZO)[^\d]{0,35}(\d{1,3}\s*dias?(?:\s+úteis|\s+corridos)?[^.\n]{0,100})/i,/(\d{1,3}\s*dias?\s+úteis[^.\n]{0,100}(?:empenho|ordem\s+de\s+fornecimento|solicitação))/i]);
       const pag=contextValue(pages,[/(?:PAGAMENTO|PRAZO\s+PARA\s+PAGAMENTO)[^.\n]{0,120}?(?:até\s*)?(\d{1,3}\s*dias?(?:\s+úteis|\s+corridos)?)/i]);
       const gar=contextValue(pages,[/(?:GARANTIA\s+CONTRATUAL|GARANTIA\s+DE\s+EXECUÇÃO)[^.\n]{0,150}?((?:\d+(?:[,.]\d+)?\s*%)[^.\n]{0,80})/i,/(não\s+(?:será\s+)?exigida\s+garantia\s+contratual)/i]);
