@@ -1,0 +1,27 @@
+name: Conferir extração de editais
+
+on:
+  push:
+    paths:
+      - index.html
+      - tests/**
+      - .github/workflows/regression.yml
+  pull_request:
+    paths:
+      - index.html
+      - tests/**
+      - .github/workflows/regression.yml
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Comparar campos e itens com os casos confirmados
+        run: node tests/regression.mjs
