@@ -42,5 +42,23 @@
       },
       "me_epp": { "value": "Mista — 1 item(ns) participável(is) e 1 restrito(s) à ME/EPP" }
     }
+  },
+  {
+    "name": "Volume do item preservado quando catálogo não informa mL (dados fictícios)",
+    "arrivalDate": "14/02/2040",
+    "catalog": [
+      { "medicamento": "Fármaco Delta", "concentracao": "2.000 UTR", "apresentacao": "Solução injetável" }
+    ],
+    "pages": [
+      "ITEM DESCRIÇÃO CÓDIGO UNID. QTD Valor Unit.estimado Total\n1 123456-7 FÁRMACO DELTA 2.000UTR 1 ML [Solução injetável] Unidade 140 R$ 103,52 R$ 14.492,80"
+    ],
+    "expected": {
+      "objeto": {
+        "value": "Fármaco Delta 2.000 UTR - 1 mL",
+        "items": [
+          { "item": 1, "quantity": "140", "unitPrice": "103,52", "restricted": false }
+        ]
+      }
+    }
   }
 ]
