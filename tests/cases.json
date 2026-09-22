@@ -1,0 +1,46 @@
+[
+  {
+    "name": "Prazo por extenso, abertura e concentração (dados fictícios)",
+    "arrivalDate": "10/02/2040",
+    "catalog": [
+      { "medicamento": "Fármaco Alfa", "concentracao": "2.000 UTR 10 mL", "apresentacao": "Solução injetável" }
+    ],
+    "pages": [
+      "HOSPITAL MODELO\nPAE 2040/1000000\nDISPENSA DE LICITAÇÃO art. 75, inciso VIII, Lei 14.133/2021\nDATA DA SESSÃO PÚBLICA Dia 12/02/2040 às 10h30\nValidade da proposta: A proposta comercial terá validade mínima de 75 (setenta e cinco) dias.",
+      "ITEM DESCRIÇÃO QTD Valor Unit.estimado\n1 123456-7 FÁRMACO ALFA 2.000UTR 10 ML [Solução injetável] Unidade 13 R$ 12,34 R$ 160,42"
+    ],
+    "expected": {
+      "abertura": { "value": "12/02/2040 às 10:30" },
+      "validade": { "value": "75 dias" },
+      "chegada": { "value": "10/02/2040" },
+      "objeto": { "value": "Fármaco Alfa 2.000 UTR 10 mL" }
+    }
+  },
+  {
+    "name": "Horário XXh e cotas por item (dados fictícios)",
+    "arrivalDate": "11/02/2040",
+    "catalog": [
+      { "medicamento": "Fármaco Beta", "concentracao": "2% 5 mL", "apresentacao": "Solução injetável" },
+      { "medicamento": "Fármaco Gama", "concentracao": "2.000 UTR 5 mL", "apresentacao": "Solução injetável" }
+    ],
+    "pages": [
+      "PREGÃO ELETRÔNICO Nº 77/2040\nDATA DA SESSÃO PÚBLICA Dia 13/02/2040 às XXh (horário de Brasília)\nVALOR TOTAL DA CONTRATAÇÃO: caráter sigiloso."
+    ],
+    "rows": [
+      { "item": 7, "simple": "Fármaco Beta 2% 5 mL solução injetável", "full": "", "presentation": "", "quantity": "13", "unitPrice": "12,34", "totalPrice": "160,42", "restricted": false, "quotaLabel": "Ampla concorrência", "sourceName": "itens-ficticios.xlsx", "rowNumber": 2 },
+      { "item": 19, "simple": "Fármaco Gama 2.000 UTR 5 mL solução injetável", "full": "", "presentation": "", "quantity": "17", "unitPrice": "21,20", "totalPrice": "360,40", "restricted": true, "quotaLabel": "Exclusiva ME/EPP", "sourceName": "itens-ficticios.xlsx", "rowNumber": 3 }
+    ],
+    "expected": {
+      "abertura": { "value": "13/02/2040 — horário não identificado", "confidence": "review" },
+      "valor": { "value": "Sigiloso — não divulgado no edital" },
+      "objeto": {
+        "value": "Fármaco Beta 2% 5 mL",
+        "items": [
+          { "item": 7, "restricted": false, "quantity": "13", "unitPrice": "12,34" },
+          { "item": 19, "restricted": true, "quantity": "17", "unitPrice": "21,20" }
+        ]
+      },
+      "me_epp": { "value": "Mista — 1 item(ns) participável(is) e 1 restrito(s) à ME/EPP" }
+    }
+  }
+]
