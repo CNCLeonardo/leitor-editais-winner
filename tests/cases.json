@@ -60,5 +60,32 @@
         ]
       }
     }
+  },
+  {
+    "name": "Tabela vertical, valor somado e vigência da ata (dados fictícios)",
+    "arrivalDate": "15/02/2040",
+    "catalog": [
+      { "medicamento": "Fármaco Épsilon", "concentracao": "20 mg/mL 1 mL", "apresentacao": "Solução injetável" }
+    ],
+    "pages": [
+      "PREFEITURA MUNICIPAL DE CIDADE MODELO\nSECRETARIA MUNICIPAL DE SAÚDE\nPREGÃO ELETRÔNICO Nº 88/2040 - PROCESSO Nº 12345/2040-67\nData da Sessão Pública: Dia: 20/02/2040 às 09h\nValor total estimado da Contratação: Item 01 - R$ 100,00 Item 02 - R$ 200,50\nCritério de Julgamento: Menor preço UNITÁRIO por ITEM\nREGISTRO DE PREÇOS",
+      "(COTA PRINCIPAL - AMPLA PARTICIPAÇÃO)\nITEM Descrição Unid. Quant. R$ Unit. R$ Item\n1\nFÁRMACO ÉPSILON 20MG/ML (INJETÁVEL)\nAMPOLA COM 1ML DE SOLUÇÃO INJETÁVEL\nCATMAT: 123456\nUNIDADE 10 10,00 100,00\n1. O fornecimento será requisitado através de Autorização de Fornecimento, quando verificada a necessidade. A detentora deverá atender todos os pedidos efetuados durante sua vigência. O prazo para o atendimento do pedido de cada entrega será de até 15 (quinze) dias úteis, contados do recebimento da Autorização de Fornecimento.\nO prazo de vigência da ata de registro de preços é de um ano, prorrogável por igual período."
+    ],
+    "expected": {
+      "cliente": { "value": "PREFEITURA MUNICIPAL DE CIDADE MODELO" },
+      "processo": { "value": "12345/2040-67" },
+      "abertura": { "value": "20/02/2040 às 09:00" },
+      "valor": { "value": "R$ 300,50" },
+      "entrega": { "value": "15 dias úteis após recebimento da Autorização de Fornecimento" },
+      "tipo_entrega": { "value": "Parcelada" },
+      "vigencia_ata": { "value": "1 ano" },
+      "prorrogacao": { "value": "Sim — Ata prorrogável por igual período" },
+      "objeto": {
+        "value": "Fármaco Épsilon 20 mg/mL 1 mL",
+        "items": [
+          { "item": 1, "restricted": false, "quantity": "10", "unitPrice": "10,00" }
+        ]
+      }
+    }
   }
 ]
